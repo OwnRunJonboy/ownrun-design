@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../public_html/ownrun-server"
+		},
+		{
+			"path": "../../public_html/ownrun-web"
+		},
+		{
+			"path": "../../python/ownrun-runner"
+		}
+	],
+	"settings": {}
+}
