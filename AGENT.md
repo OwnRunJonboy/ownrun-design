@@ -192,16 +192,39 @@ The runner advertises which profiles are enabled. The SPA only offers those.
 
 **Not in v1:** `web_search` (needs a search provider or scraping HTML search pages), code execution, subprocess, browser automation, email, anything that talks to LAN services.
 
-### 10.2 Workspace tools
+### 10.2 Projects and workspace tools
 
 Config: `OWNRUN_AGENT_WORKSPACE` (absolute path). Default something like `~/ownrun-workspace`. Create it if missing; do not default to `$HOME`.
 
-- Resolve all paths under the workspace real path. Reject `..`, symlinks that escape, and absolute paths outside.
+That path is the **projects root**, not the agent’s working directory. Each agent run that uses file tools is scoped to one **project**: a subdirectory of the root.
+
+```
+~/ownrun-workspace/          ← OWNRUN_AGENT_WORKSPACE
+  notes/                     ← project "notes"
+    notes.md
+    summary.md
+  blog/                      ← project "blog"
+    draft.md
+```
+
+**Project id rules** (server + runner enforce the same):
+
+- Required for profiles that include file tools (`workspace`, `workspace_web`).
+- Optional / ignored for `web` (no file tools).
+- Pattern: start with `[a-zA-Z0-9]`, then up to 63 more chars of `[a-zA-Z0-9._-]`. No `/`, `\`, `..`, or absolute paths.
+- **Create if missing:** when the job starts, the runner creates `<workspace>/<project>/` if it does not exist.
+- Continue inherits the parent job’s `project`.
+
+**Discovery:** the runner lists immediate child directories of the workspace root and advertises them as `agent_projects` on heartbeat. The SPA offers that list plus a free-text “new project” name. The server does not own project metadata beyond what is stored on each job’s `request_payload`.
+
+**File tools** sandboxed to the **project directory** (not the whole workspace root):
+
+- Resolve all paths under the project real path. Reject `..`, symlinks that escape, and absolute paths outside.
 - `list_dir(path=".")` — names and types only; cap entries.
 - `read_file(path)` — text files only; cap size (e.g. 64 KiB); refuse binary.
-- `write_file(path, content)` — text only; cap size; no overwrite of files outside workspace (already guaranteed by resolve). Optional: refuse writes unless profile allows write (all v1 workspace profiles allow write).
+- `write_file(path, content)` — text only; cap size; no overwrite of files outside the project (already guaranteed by resolve).
 
-The agent must not see the real host path in tool results if we can avoid it; show workspace-relative paths.
+The agent must not see the real host path in tool results if we can avoid it; show **project-relative** paths. Tool docs and system prompts should say “project,” not the host workspace path.
 
 ### 10.3 HTTP fetch
 
@@ -231,18 +254,20 @@ Never put secrets from the runner environment into tool results.
   "model": "qwen2.5:14b",
   "prompt": "Read notes.md and draft a summary in summary.md",
   "profile": "workspace",
+  "project": "notes",
   "system_prompt": "optional extra instructions",
   "max_tool_iterations": 8,
   "parent_job_id": 12
 }
 ```
 
-`prompt` is the task. `messages` is optional on continue (section 13): prior user/assistant turns only, not the full inner trace.
+`prompt` is the task. `project` is the sandbox subdirectory under `OWNRUN_AGENT_WORKSPACE` (required for workspace-capable profiles). `messages` is optional on continue (section 13): prior user/assistant turns only, not the full inner trace.
 
 Server validation:
 
 - `type` is `agent.task` or inferred from the create endpoint.
 - `model`, `prompt`, `profile` required.
+- `project` required when `profile` is `workspace` or `workspace_web`; must match the project id pattern (section 10.2).
 - `profile` must be a known id (or the server can allow any string and let the runner fail — prefer server allowlist synced from runner heartbeat).
 - `max_tool_iterations` integer, default 8, max 20.
 - Same `max_request_payload_bytes` as today (64 KiB is enough for request; traces are the size problem).
@@ -254,6 +279,7 @@ Server validation:
   "text": "Wrote summary.md with three bullets.",
   "model": "qwen2.5:14b",
   "profile": "workspace",
+  "project": "notes",
   "duration_ms": 184230,
   "stop_reason": "completed",
   "iterations": 4,
@@ -302,15 +328,16 @@ Existing auth, claim, complete, fail stay. Additive changes only.
   "runner_online": true,
   "runner_last_seen_at": "...",
   "agent_profiles": ["workspace", "web", "workspace_web"],
-  "agent_models": ["qwen2.5:14b"]
+  "agent_models": ["qwen2.5:14b"],
+  "agent_projects": ["notes", "blog"]
 }
 ```
 
-`agent_models` optional; if omitted, the UI uses `models` and the runner fails unsupported ones.
+`agent_models` optional; if omitted, the UI uses `models` and the runner fails unsupported ones. `agent_projects` is the runner’s current list of project directories (may be empty).
 
 ### Runner
 
-- `POST /api/runner/heartbeat` — may include `agent_profiles` and `agent_models` next to `available_models`. Store JSON on the runner row (new columns or one `capabilities` JSON). Keep `available_models` as-is for chat.
+- `POST /api/runner/heartbeat` — may include `agent_profiles`, `agent_models`, and `agent_projects` next to `available_models`. Store JSON on the runner row (new columns or one `capabilities` JSON). Keep `available_models` as-is for chat.
 
 - `POST /api/runner/jobs/{id}/heartbeat` — response includes `{ "ok": true, "cancel_requested": false }` so the adapter can trip `CancellationToken`.
 
@@ -327,12 +354,12 @@ Chat continue today copies `messages` + last assistant text + new user prompt in
 Agent continue:
 
 1. Parent must be `agent.task` and `succeeded` (v1).
-2. New job: same `model` and `profile`.
+2. New job: same `model`, `profile`, and `project`.
 3. `messages`: compact history — previous **user prompts** and **final `text` answers** only. Do not replay tool calls into the next AgentChat task; they confuse small models and explode tokens.
 4. `prompt`: the new user task.
 5. `parent_job_id`: set as today.
 
-The new run is a new `AssistantAgent`. Prior tool side effects (files in the workspace) are still on disk; that is enough memory for workspace profiles.
+The new run is a new `AssistantAgent`. Prior tool side effects (files in the project directory) are still on disk; that is enough memory for workspace profiles.
 
 ## 14. Web UI
 
@@ -341,14 +368,14 @@ Keep the job list as the hub. Distinguish types in the list (badge: `chat` vs `a
 ### New agent task
 
 - Route: `/#/jobs/new-agent` or a type toggle on the existing new-job page. A **toggle or second form** is enough; do not hide chat.
-- Fields: model (from `agent_models` if present), profile, task textarea, optional system prompt, optional max iterations (advanced, collapsed).
+- Fields: model (from `agent_models` if present), profile, **project** (select from `agent_projects` or type a new name; required for workspace-capable profiles), task textarea, optional system prompt, optional max iterations (advanced, collapsed).
 - Same runner online badge. If no agent profiles are advertised, explain that the runner is old or agent support is disabled.
 
 ### Job detail
 
 - Chat jobs: unchanged conversation view.
 - Agent jobs:
-  - Task and profile/model header
+  - Task and profile/project/model header
   - **Trace timeline** while running and after: user, tool_call (name + args), tool_result (ok/fail + truncated content), assistant message
   - Final `text` emphasized
   - `stop_reason` when not `completed`
@@ -367,9 +394,9 @@ Keep `main.py`’s claim loop. `_process_job` gains a branch:
 
 `run_agent_task`:
 
-1. Validate profile against runner config.
+1. Validate profile against runner config; validate/resolve `project` under the workspace root (create dir if needed).
 2. Build `OllamaChatCompletionClient`.
-3. Instantiate tools closed over workspace path and HTTP policy.
+3. Instantiate tools closed over the **project** path and HTTP policy.
 4. Create `AssistantAgent` with `CancellationToken`.
 5. `async for` event in `run_stream(task=prompt or messages)`:
    - map event → trace step
@@ -384,7 +411,7 @@ Dependencies: add AgentChat + `autogen-ext[ollama]` to `requirements.txt` with p
 Agents increase the blast radius of a stolen web session: the attacker can queue a task that reads the workspace or fetches URLs from the home IP. Existing auth still applies. Additional controls:
 
 - **Fixed catalog** — no user-supplied tools, URLs for code exec, or shell.
-- **Workspace root** — only directory the file tools can touch.
+- **Project directory** — file tools only touch `<OWNRUN_AGENT_WORKSPACE>/<project>/`; project names are constrained so they cannot escape the root.
 - **SSRF policy** on `http_fetch`.
 - **No LAN tools** in v1 (no “hit my NAS API”).
 - **Truncation and size caps** so a hostile page cannot fill MariaDB.
@@ -408,7 +435,7 @@ Magentic-One-style code execution stays out until there is a Docker (or equivale
 | Variable | Role |
 |----------|------|
 | Existing `OWNRUN_*` / `OLLAMA_BASE_URL` | Unchanged |
-| `OWNRUN_AGENT_WORKSPACE` | Sandbox root for file tools |
+| `OWNRUN_AGENT_WORKSPACE` | Parent directory for agent projects (each project is a subdirectory) |
 | `OWNRUN_AGENT_PROFILES` | Comma list; default `workspace,web,workspace_web` |
 | `OWNRUN_AGENT_WALL_CLOCK` | Seconds; default e.g. 1200 |
 | `OWNRUN_AGENT_FETCH_TIMEOUT` | Seconds for `http_fetch` |
@@ -421,7 +448,7 @@ No extra origin/CORS changes. New form and detail rendering only.
 
 ## 18. Observability
 
-- Runner logs: job id, profile, model, each tool name, duration, stop_reason.
+- Runner logs: job id, profile, project, model, each tool name, duration, stop_reason.
 - Do not log full file contents or fetched bodies at INFO.
 - Failed jobs: adapter exception string as today.
 - UI: trace + `error_message` + `stop_reason`.
@@ -459,7 +486,7 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 2. **Framework:** Autogen AgentChat 0.4+ with `OllamaChatCompletionClient`.
 3. **Topology:** single `AssistantAgent` per job. No teams in v1.
 4. **Job type:** `agent.task`, separate from `ollama.chat`.
-5. **Tools:** runner-defined profiles; sandbox workspace + SSRF-safe GET fetch + `now`.
+5. **Tools:** runner-defined profiles; per-job **project** sandbox under the workspace root + SSRF-safe GET fetch + `now`.
 6. **No HITL, no shell, no Magentic-One, no MCP** in v1.
 7. **Fresh agent per job.** Continue copies user/final-answer text only.
 8. **Progress:** new `progress_payload` and runner progress POST (Phase 4b). Final result still goes to `result_payload`.
@@ -479,9 +506,9 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 ## 22. Success criteria (agent v1 / Phase 4a)
 
 1. From a remote browser, a logged-in user can submit an `agent.task` with a workspace profile.
-2. With the home runner online, the agent reads/writes only under `OWNRUN_AGENT_WORKSPACE` and returns a final answer plus a tool trace.
+2. With the home runner online, the agent reads/writes only under `OWNRUN_AGENT_WORKSPACE/<project>/` and returns a final answer plus a tool trace.
 3. `ollama.chat` jobs still work as they do today.
-4. A task that would require shell or paths outside the workspace cannot do so via the catalog.
+4. A task that would require shell or paths outside the selected project cannot do so via the catalog.
 5. If Ollama is down or the model cannot call tools, the job `failed` with a readable error.
 6. No inbound connection to the home machine is required.
 
