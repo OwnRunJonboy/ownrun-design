@@ -4,6 +4,8 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. Does not replace this document.
+
 ## 1. Purpose
 
 OwnRun makes local AI tools running on a home computer available when away from that computer.
@@ -27,6 +29,7 @@ OwnRun is a **personal remote-access bridge** for local AI—not a multi-tenant 
 - Peer-to-peer or direct inbound connections to the home machine (no port forwarding required).
 - Running arbitrary shell commands from the web UI (only predefined tool/job types).
 - Image generation in v1 (deferred until text flow is solid; then Stable Diffusion).
+- Agentic tool loops in v1 (deferred; see [AGENT.md](AGENT.md) for the agent job type).
 - High availability / multi-runner clustering.
 - Mobile native apps.
 
@@ -190,7 +193,7 @@ One active runner expected initially; schema should still allow multiple named r
 - `id` (integer primary key; MariaDB `AUTO_INCREMENT`)
 - `user_id`
 - `runner_id` (nullable until claimed)
-- `type` (v1: `ollama.chat`; later: `stablediffusion.txt2img`)
+- `type` (v1: `ollama.chat`; later: `agent.task`, `stablediffusion.txt2img`)
 - `status`
 - `request_payload` (JSON: messages and/or prompt fields mapped to Ollama chat, model, parameters)
 - `result_payload` (JSON: text response and metadata in v1; image metadata later)
@@ -292,7 +295,8 @@ Jobs are typed. The runner maps `type` to a local adapter.
 
 **Later (after text flow is solid)**
 
-3. **Stable Diffusion text-to-image** — runner adapter invokes the local SD toolchain; uploads image artifact(s) to the server; web UI displays/downloads images.
+3. **Agent task** (`agent.task`) — runner adapter runs Autogen AgentChat against local Ollama plus a sandboxed tool catalog. See [AGENT.md](AGENT.md). Independent of images.
+4. **Stable Diffusion text-to-image** — runner adapter invokes the local SD toolchain; uploads image artifact(s) to the server; web UI displays/downloads images.
 
 **Adapter interface (conceptual)**
 
@@ -434,6 +438,15 @@ SPA history-mode routing (if used) must rewrite unknown paths to `index.html` **
 - Web UI: submit image jobs and view/download results.
 - Keep Ollama text path unchanged.
 
+### Phase 4 — Agents (Autogen AgentChat)
+
+Independent of Phase 3. Specified in [AGENT.md](AGENT.md).
+
+- New job type `agent.task`; keep `ollama.chat` unchanged.
+- Runner adapter: single `AssistantAgent` + Ollama client + sandboxed tools.
+- Web UI: new agent task form; job detail shows a tool/message trace.
+- No Magentic-One, no shell, no human-in-the-loop in the first agent slice.
+
 ## 16. Decisions
 
 1. **Local text backend:** Ollama (not LocalAI).
@@ -446,10 +459,11 @@ SPA history-mode routing (if used) must rewrite unknown paths to `index.html` **
 8. **Ollama API:** `/api/chat` (job type `ollama.chat`), non-streaming for v1.
 9. **Model selection:** user-selectable list in the web UI; runner reports available Ollama models to the server; SPA loads them via `GET /api/models`; selected model is stored on each job.
 10. **Token details:** **JWT access tokens**; **refresh tokens** and **remember-me tokens** to keep login rare. Suggested TTLs: access JWT ~7 days; refresh ~30 days; remember-me refresh ~1 year. Rotate refresh tokens on use; store refresh/remember-me hashes in MariaDB for revocation. Runner credentials remain opaque hashed tokens, not JWTs.
+11. **Agents (post-v1):** Autogen AgentChat on the home runner, Ollama as the model only. Job type `agent.task`. Details in [AGENT.md](AGENT.md).
 
 ## 17. Open decisions
 
-None remaining for v1 path layout. SPA is at `/`; PHP is at `/api`.
+None remaining for v1 path layout. SPA is at `/`; PHP is at `/api`. Agent design decisions live in [AGENT.md](AGENT.md).
 
 ## 18. Success criteria (v1)
 

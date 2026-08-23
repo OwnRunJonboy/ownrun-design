@@ -87,9 +87,12 @@ Ensure Ollama is running locally (`ollama serve`).
 
 1. Log in at `/#/login`
 2. Confirm runner badge shows **online** (runner sending heartbeats)
-3. **New job** → pick model, enter prompt, submit
+3. **New chat** → pick model, enter prompt, submit
 4. Job moves queued → running → succeeded; result text appears on job detail
-5. Stop runner → badge **offline**; new jobs stay queued
+5. **New agent** → pick model + profile, enter a task; watch the tool trace while running
+6. Stop runner → badge **offline**; new jobs stay queued
+
+For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once.
 
 ## Repository layout
 
