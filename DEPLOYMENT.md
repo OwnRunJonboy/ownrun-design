@@ -90,9 +90,10 @@ Ensure Ollama is running locally (`ollama serve`).
 3. **New chat** → pick model, enter prompt, submit
 4. Job moves queued → running → succeeded; result text appears on job detail
 5. **New agent** → pick model, profile, and project (existing or new), enter a task; watch the tool trace while running
-6. Stop runner → badge **offline**; new jobs stay queued
+6. **Calendar** → `/#/calendar`; add an entry; optional project; confirm it remains after reload
+7. Stop runner → badge **offline**; new jobs stay queued; calendar still works
 
-For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once (adds progress payload, agent capability columns, and `agent_projects`).
+For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once (adds progress payload, agent capability columns, and `agent_projects`). For calendar support, run `php scripts/migrate_calendar.php` (adds `calendar_entries` and `runners.timezone`), then open `/#/calendar`.
 
 ## Repository layout
 

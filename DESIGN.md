@@ -4,7 +4,7 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
-**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. Does not replace this document.
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. Neither replaces this document.
 
 ## 1. Purpose
 
@@ -446,6 +446,14 @@ Independent of Phase 3. Specified in [AGENT.md](AGENT.md).
 - Runner adapter: single `AssistantAgent` + Ollama client + sandboxed tools.
 - Web UI: new agent task form; job detail shows a tool/message trace.
 - No Magentic-One, no shell, no human-in-the-loop in the first agent slice.
+
+### Phase 5 — Calendar
+
+Independent of images. Specified in [CALENDAR.md](CALENDAR.md). Can follow agent Phase 4a; agent tools (5b) need `agent.task`.
+
+- MariaDB `calendar_entries`; SPA month view and user CRUD (works with the runner offline).
+- Optional `project` on entries; agents see/write a job-scoped slice.
+- Runner tools on existing agent profiles; not a new job type.
 
 ## 16. Decisions
 

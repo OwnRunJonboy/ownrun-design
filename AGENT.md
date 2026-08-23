@@ -3,7 +3,8 @@
 **Status:** Draft  
 **Date:** 2026-08-23  
 **Author:** Jonboy  
-**Depends on:** [DESIGN.md](DESIGN.md) (product architecture, job queue, security, hosting constraints)
+**Depends on:** [DESIGN.md](DESIGN.md) (product architecture, job queue, security, hosting constraints)  
+**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project.
 
 This document designs an **agent job type** for OwnRun. It does not replace the existing `ollama.chat` path. Chat stays the simple one-shot / continue-conversation flow. Agents are a new kind of job that can plan, call tools, and loop until a task is done.
 
@@ -190,7 +191,7 @@ This keeps DESIGN.md’s rule: no free-form remote code execution. Prompt inject
 
 The runner advertises which profiles are enabled. The SPA only offers those.
 
-**Not in v1:** `web_search` (needs a search provider or scraping HTML search pages), code execution, subprocess, browser automation, email, anything that talks to LAN services.
+**Not in v1:** `web_search` (needs a search provider or scraping HTML search pages), code execution, subprocess, browser automation, email, anything that talks to LAN services. Calendar tools (`calendar_search`, `calendar_get`, `calendar_add`, `calendar_edit`, `calendar_delete`) are specified in [CALENDAR.md](CALENDAR.md) and land in a later phase; they attach to these same profiles rather than adding new ones.
 
 ### 10.2 Projects and workspace tools
 
@@ -237,7 +238,31 @@ The agent must not see the real host path in tool results if we can avoid it; sh
 
 ### 10.4 `now`
 
-Return UTC timestamp. Cheap, useful for “today’s date” tasks, no extra risk.
+Return the current time in **UTC and the runner’s configured timezone**. Cheap, useful for “today’s date” and calendar work, no extra risk.
+
+Config: `OWNRUN_TIMEZONE` — IANA name, default **`America/New_York`**. Validate with the platform tz database at runner start (or before the first agent job). An unknown name is a hard error; do not silently fall back to UTC.
+
+The tool takes **no arguments**. The model cannot pick a zone per call.
+
+Result is a small JSON object (stringify it as the tool output):
+
+```json
+{
+  "utc": "2026-08-23T19:52:00Z",
+  "timezone": "America/New_York",
+  "local": "2026-08-23T15:52:00-04:00",
+  "weekday": "Sunday",
+  "today": {"start": "2026-08-23T04:00:00Z", "end": "2026-08-24T04:00:00Z"},
+  "this_week": {"start": "2026-08-23T04:00:00Z", "end": "2026-08-30T04:00:00Z"},
+  "next_7_days": {"start": "2026-08-23T04:00:00Z", "end": "2026-08-30T04:00:00Z"}
+}
+```
+
+`local` includes the numeric offset so DST is explicit. `weekday` is the local civil day. Use the IANA zone for conversion; never hard-code `-05:00`.
+
+`today` / `this_week` / `next_7_days` are UTC instants the agent should copy into `calendar_search` (`this_week` is Sunday 00:00 through next Sunday 00:00 in `OWNRUN_TIMEZONE`). `calendar_search` may omit `start`/`end` and will default to this week.
+
+System prompts must stamp the **real current date and year** so “today / this week” is not a training-cutoff guess. Include this week’s UTC `start`/`end`. Name the real tools (`now`, `calendar_search`, …); do not invent `project_calendar`. If the user names another year, search that year as given.
 
 ### 10.5 Tool result hygiene
 
@@ -329,15 +354,16 @@ Existing auth, claim, complete, fail stay. Additive changes only.
   "runner_last_seen_at": "...",
   "agent_profiles": ["workspace", "web", "workspace_web"],
   "agent_models": ["qwen2.5:14b"],
-  "agent_projects": ["notes", "blog"]
+  "agent_projects": ["notes", "blog"],
+  "timezone": "America/New_York"
 }
 ```
 
-`agent_models` optional; if omitted, the UI uses `models` and the runner fails unsupported ones. `agent_projects` is the runner’s current list of project directories (may be empty).
+`agent_models` optional; if omitted, the UI uses `models` and the runner fails unsupported ones. `agent_projects` is the runner’s current list of project directories (may be empty). `timezone` is `OWNRUN_TIMEZONE` so the SPA can highlight the same civil “today” agents get from `now` (default `America/New_York` if omitted).
 
 ### Runner
 
-- `POST /api/runner/heartbeat` — may include `agent_profiles`, `agent_models`, and `agent_projects` next to `available_models`. Store JSON on the runner row (new columns or one `capabilities` JSON). Keep `available_models` as-is for chat.
+- `POST /api/runner/heartbeat` — may include `agent_profiles`, `agent_models`, `agent_projects`, and `timezone` next to `available_models`. Store JSON on the runner row (new columns or one `capabilities` JSON). Keep `available_models` as-is for chat.
 
 - `POST /api/runner/jobs/{id}/heartbeat` — response includes `{ "ok": true, "cancel_requested": false }` so the adapter can trip `CancellationToken`.
 
@@ -439,6 +465,7 @@ Magentic-One-style code execution stays out until there is a Docker (or equivale
 | `OWNRUN_AGENT_PROFILES` | Comma list; default `workspace,web,workspace_web` |
 | `OWNRUN_AGENT_WALL_CLOCK` | Seconds; default e.g. 1200 |
 | `OWNRUN_AGENT_FETCH_TIMEOUT` | Seconds for `http_fetch` |
+| `OWNRUN_TIMEZONE` | IANA timezone for `now` (and calendar “local” time). Default `America/New_York` |
 
 No API keys required for v1 tools.
 
@@ -479,6 +506,7 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 - Search tool if a local SearXNG (or similar) URL is configured.
 - A second topology (e.g. two-agent reviewer) as another profile — still not Magentic-One.
 - Type-aware claim / second worker so chat is not blocked by a long agent.
+- Calendar tools on these profiles — specified separately in [CALENDAR.md](CALENDAR.md) (Phase 5), not as a new profile.
 
 ## 20. Decisions
 
@@ -486,7 +514,7 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 2. **Framework:** Autogen AgentChat 0.4+ with `OllamaChatCompletionClient`.
 3. **Topology:** single `AssistantAgent` per job. No teams in v1.
 4. **Job type:** `agent.task`, separate from `ollama.chat`.
-5. **Tools:** runner-defined profiles; per-job **project** sandbox under the workspace root + SSRF-safe GET fetch + `now`.
+5. **Tools:** runner-defined profiles; per-job **project** sandbox under the workspace root + SSRF-safe GET fetch + `now` (UTC plus `OWNRUN_TIMEZONE`, default `America/New_York`).
 6. **No HITL, no shell, no Magentic-One, no MCP** in v1.
 7. **Fresh agent per job.** Continue copies user/final-answer text only.
 8. **Progress:** new `progress_payload` and runner progress POST (Phase 4b). Final result still goes to `result_payload`.
