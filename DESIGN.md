@@ -4,7 +4,7 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
-**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. Neither replaces this document.
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). Neither replaces this document.
 
 ## 1. Purpose
 
