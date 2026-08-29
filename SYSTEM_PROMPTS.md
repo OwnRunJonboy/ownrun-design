@@ -185,11 +185,12 @@ For `agent.task`, the runner still builds:
 <profile boilerplate>
 <calendar tool paragraph>
 <journal tool paragraph>
+<task tool paragraph>
 Additional instructions:
 <user system_prompt>
 ```
 
-The user library cannot hide tools, dates, or project write-set rules. If `system_prompt` is null, there is no “Additional instructions” block (today’s behavior).
+The user library cannot hide tools, dates, or project write-set rules. If `system_prompt` is null, there is no “Additional instructions” block (today’s behavior). Task tools are specified in [TASKS.md](TASKS.md).
 
 For `ollama.chat`, `system_prompt` is the **entire** system message. There is no profile boilerplate.
 

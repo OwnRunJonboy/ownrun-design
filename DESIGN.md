@@ -4,7 +4,7 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
-**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. None of these replace this document.
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. [TASKS.md](TASKS.md) — personal task tracker in the SPA, home-page due card, and agent task tools (project CRUD; global read-only). None of these replace this document.
 
 ## 1. Purpose
 
@@ -470,6 +470,14 @@ Independent of journal tools. Specified in [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md
 - MariaDB prompt library plus global and per-project defaults (works with the runner offline).
 - New chat / New agent load, save, and auto-fill; jobs still snapshot `system_prompt` text.
 - Optional `project` on `ollama.chat` for default lookup only.
+
+### Phase 8 — Tasks
+
+Independent of the prompt library. Specified in [TASKS.md](TASKS.md). Can follow journal Phase 6; agent tools (8b) need `agent.task`.
+
+- MariaDB `task_entries`; SPA list/create/edit/delete and home-page due card (works with the runner offline).
+- Optional `project` on tasks; agents read global ∪ job project, write job project only.
+- Runner tools on existing agent profiles; not a new job type.
 
 ## 16. Decisions
 

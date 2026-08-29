@@ -4,7 +4,7 @@
 **Date:** 2026-08-23  
 **Author:** Jonboy  
 **Depends on:** [DESIGN.md](DESIGN.md) (product architecture, job queue, security, hosting constraints)  
-**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project. [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and per-project defaults; user extra is still appended to the profile system message.
+**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project. [JOURNAL.md](JOURNAL.md) — personal journal; agents read global ∪ job project, write job project only. [TASKS.md](TASKS.md) — personal tasks; same agent scoping as journal. [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and per-project defaults; user extra is still appended to the profile system message.
 
 This document designs an **agent job type** for OwnRun. It does not replace the existing `ollama.chat` path. Chat stays the simple one-shot / continue-conversation flow. Agents are a new kind of job that can plan, call tools, and loop until a task is done.
 
@@ -507,6 +507,8 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 - A second topology (e.g. two-agent reviewer) as another profile — still not Magentic-One.
 - Type-aware claim / second worker so chat is not blocked by a long agent.
 - Calendar tools on these profiles — specified separately in [CALENDAR.md](CALENDAR.md) (Phase 5), not as a new profile.
+- Journal tools — specified in [JOURNAL.md](JOURNAL.md) (Phase 6).
+- Task tools — specified in [TASKS.md](TASKS.md) (Phase 8).
 
 ## 20. Decisions
 
