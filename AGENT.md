@@ -4,7 +4,7 @@
 **Date:** 2026-08-23  
 **Author:** Jonboy  
 **Depends on:** [DESIGN.md](DESIGN.md) (product architecture, job queue, security, hosting constraints)  
-**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project.
+**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project. [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and per-project defaults; user extra is still appended to the profile system message.
 
 This document designs an **agent job type** for OwnRun. It does not replace the existing `ollama.chat` path. Chat stays the simple one-shot / continue-conversation flow. Agents are a new kind of job that can plan, call tools, and loop until a task is done.
 
@@ -139,7 +139,7 @@ One `AssistantAgent` per job:
 - **name:** `ownrun_assistant` (stable; not user-facing)
 - **model_client:** `OllamaChatCompletionClient` with the job’s model and `host` = runner `OLLAMA_BASE_URL`
 - **tools:** the selected **profile**’s catalog (section 10)
-- **system_message:** profile default, optionally appended with a user system prompt
+- **system_message:** profile default, optionally appended with a user system prompt (typed, loaded from the prompt library, or auto-filled from a project/global default — see [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md))
 - **reflect_on_tool_use:** `true` so the final message is a natural-language answer, not a raw tool dump
 - **max_tool_iterations:** from the job, capped by the server (suggested default **8**, hard cap **20**)
 - **model_client_stream:** `false` — no token streaming to the server
@@ -380,7 +380,7 @@ Chat continue today copies `messages` + last assistant text + new user prompt in
 Agent continue:
 
 1. Parent must be `agent.task` and `succeeded` (v1).
-2. New job: same `model`, `profile`, and `project`.
+2. New job: same `model`, `profile`, `project`, and `system_prompt` snapshot (do not re-resolve library/project defaults — [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md)).
 3. `messages`: compact history — previous **user prompts** and **final `text` answers** only. Do not replay tool calls into the next AgentChat task; they confuse small models and explode tokens.
 4. `prompt`: the new user task.
 5. `parent_job_id`: set as today.
@@ -394,7 +394,7 @@ Keep the job list as the hub. Distinguish types in the list (badge: `chat` vs `a
 ### New agent task
 
 - Route: `/#/jobs/new-agent` or a type toggle on the existing new-job page. A **toggle or second form** is enough; do not hide chat.
-- Fields: model (from `agent_models` if present), profile, **project** (select from `agent_projects` or type a new name; required for workspace-capable profiles), task textarea, optional system prompt, optional max iterations (advanced, collapsed).
+- Fields: model (from `agent_models` if present), profile, **project** (select from `agent_projects` or type a new name; required for workspace-capable profiles), task textarea, optional system prompt (library picker, save-as, auto-fill from project/global default — [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md)), optional max iterations (advanced, collapsed).
 - Same runner online badge. If no agent profiles are advertised, explain that the runner is old or agent support is disabled.
 
 ### Job detail

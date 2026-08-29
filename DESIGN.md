@@ -4,7 +4,7 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
-**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). Neither replaces this document.
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. None of these replace this document.
 
 ## 1. Purpose
 
@@ -282,7 +282,7 @@ Jobs are typed. The runner maps `type` to a local adapter.
 
 **v1 (text only — Ollama)**
 
-1. **Ollama chat** (`ollama.chat`) — call Ollama on localhost at `/api/chat` with `stream: false` and the **model chosen in the web UI**; return assistant text (and optional model/timing metadata). The web form collects model + user prompt (and optional system prompt); the runner builds the `messages` array.
+1. **Ollama chat** (`ollama.chat`) — call Ollama on localhost at `/api/chat` with `stream: false` and the **model chosen in the web UI**; return assistant text (and optional model/timing metadata). The web form collects model + user prompt (and optional system prompt, from a saved library or project default — see [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md)); the runner builds the `messages` array.
 2. **Health / echo** (optional) — diagnostic job to verify runner connectivity without invoking a model.
 
 **Model list**
@@ -454,6 +454,22 @@ Independent of images. Specified in [CALENDAR.md](CALENDAR.md). Can follow agent
 - MariaDB `calendar_entries`; SPA month view and user CRUD (works with the runner offline).
 - Optional `project` on entries; agents see/write a job-scoped slice.
 - Runner tools on existing agent profiles; not a new job type.
+
+### Phase 6 — Journal
+
+Independent of images. Specified in [JOURNAL.md](JOURNAL.md). Can follow calendar Phase 5; agent tools (6b) need `agent.task`.
+
+- MariaDB `journal_entries`; SPA list/create/edit/delete and home-page memory card (works with the runner offline).
+- Optional `project` on entries; agents read global ∪ job project, write job project only.
+- Runner tools on existing agent profiles; not a new job type.
+
+### Phase 7 — System prompts
+
+Independent of journal tools. Specified in [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md). Needs both chat and agent forms. No new runner tools.
+
+- MariaDB prompt library plus global and per-project defaults (works with the runner offline).
+- New chat / New agent load, save, and auto-fill; jobs still snapshot `system_prompt` text.
+- Optional `project` on `ollama.chat` for default lookup only.
 
 ## 16. Decisions
 

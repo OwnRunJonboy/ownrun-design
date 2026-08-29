@@ -3,7 +3,8 @@
 **Status:** Draft  
 **Date:** 2026-08-23  
 **Author:** Jonboy  
-**Depends on:** [DESIGN.md](DESIGN.md) (hosting, auth, API shape), [AGENT.md](AGENT.md) (agent jobs, tool catalog, project ids), [CALENDAR.md](CALENDAR.md) (project scoping pattern)
+**Depends on:** [DESIGN.md](DESIGN.md) (hosting, auth, API shape), [AGENT.md](AGENT.md) (agent jobs, tool catalog, project ids), [CALENDAR.md](CALENDAR.md) (project scoping pattern)  
+**Related:** [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — standing instructions for chat/agent jobs; not journal entry bodies.
 
 This document designs a **personal journal** stored on ownrun-server. The Vue SPA can view, edit, and manually add entries. The jobs home page surfaces a daily **memory** from the past. Agents can fully manage entries for their job’s project and can search and read global entries. It is not a new job type.
 
