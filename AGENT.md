@@ -4,7 +4,7 @@
 **Date:** 2026-08-23  
 **Author:** Jonboy  
 **Depends on:** [DESIGN.md](DESIGN.md) (product architecture, job queue, security, hosting constraints)  
-**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project. [JOURNAL.md](JOURNAL.md) — personal journal; agents read global ∪ job project, write job project only. [TASKS.md](TASKS.md) — personal tasks; same agent scoping as journal. [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and per-project defaults; user extra is still appended to the profile system message.
+**Related:** [CALENDAR.md](CALENDAR.md) — personal calendar; agents search/view/add/edit/delete via extra tools, scoped by job project. [JOURNAL.md](JOURNAL.md) — personal journal; agents read global ∪ job project, write job project only. [TASKS.md](TASKS.md) — personal tasks; same agent scoping as journal. [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and per-project defaults; user extra is still appended to the profile system message. [WEB_SEARCH.md](WEB_SEARCH.md) — `web_search` via Ollama’s cloud API on `web` / `workspace_web`. [TOOL_POLICY.md](TOOL_POLICY.md) — per-project and per-job tool disables.
 
 This document designs an **agent job type** for OwnRun. It does not replace the existing `ollama.chat` path. Chat stays the simple one-shot / continue-conversation flow. Agents are a new kind of job that can plan, call tools, and loop until a task is done.
 
@@ -191,7 +191,7 @@ This keeps DESIGN.md’s rule: no free-form remote code execution. Prompt inject
 
 The runner advertises which profiles are enabled. The SPA only offers those.
 
-**Not in v1:** `web_search` (needs a search provider or scraping HTML search pages), code execution, subprocess, browser automation, email, anything that talks to LAN services. Calendar tools (`calendar_search`, `calendar_get`, `calendar_add`, `calendar_edit`, `calendar_delete`) are specified in [CALENDAR.md](CALENDAR.md) and land in a later phase; they attach to these same profiles rather than adding new ones.
+**Not in agent v1:** code execution, subprocess, browser automation, email, anything that talks to LAN services. Calendar tools (`calendar_search`, …) are specified in [CALENDAR.md](CALENDAR.md). Web search lands in Phase 9 ([WEB_SEARCH.md](WEB_SEARCH.md)): native `web_search` via Ollama’s cloud API, `web` / `workspace_web` only, gated by [TOOL_POLICY.md](TOOL_POLICY.md). Still no generic MCP plugin slot.
 
 ### 10.2 Projects and workspace tools
 
@@ -502,8 +502,8 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 
 ### Phase 4c — Later (optional)
 
-- MCP tools from a runner-configured command (still not user-supplied).
-- Search tool if a local SearXNG (or similar) URL is configured.
+- Web search and per-project tool policy — [WEB_SEARCH.md](WEB_SEARCH.md) + [TOOL_POLICY.md](TOOL_POLICY.md) (Phase 9).
+- MCP tools from a runner-configured command (still not user-supplied) — only if a future feature needs it; search does not.
 - A second topology (e.g. two-agent reviewer) as another profile — still not Magentic-One.
 - Type-aware claim / second worker so chat is not blocked by a long agent.
 - Calendar tools on these profiles — specified separately in [CALENDAR.md](CALENDAR.md) (Phase 5), not as a new profile.
@@ -517,7 +517,7 @@ Agent work is **Phase 4** relative to DESIGN.md. Images (Phase 3) stay independe
 3. **Topology:** single `AssistantAgent` per job. No teams in v1.
 4. **Job type:** `agent.task`, separate from `ollama.chat`.
 5. **Tools:** runner-defined profiles; per-job **project** sandbox under the workspace root + SSRF-safe GET fetch + `now` (UTC plus `OWNRUN_TIMEZONE`, default `America/New_York`).
-6. **No HITL, no shell, no Magentic-One, no MCP** in v1.
+6. **No HITL, no shell, no Magentic-One, no generic MCP** in v1 (Phase 9 adds native tools, not user MCP).
 7. **Fresh agent per job.** Continue copies user/final-answer text only.
 8. **Progress:** new `progress_payload` and runner progress POST (Phase 4b). Final result still goes to `result_payload`.
 9. **Cancel running** is in scope for agents (Phase 4b).

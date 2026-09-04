@@ -4,7 +4,7 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
-**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. [TASKS.md](TASKS.md) — personal task tracker in the SPA, home-page due card, and agent task tools (project CRUD; global read-only). None of these replace this document.
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. [TASKS.md](TASKS.md) — personal task tracker in the SPA, home-page due card, and agent task tools (project CRUD; global read-only). [WEB_SEARCH.md](WEB_SEARCH.md) — agent web search via Ollama’s cloud API (`web_search` + existing `http_fetch`). [TOOL_POLICY.md](TOOL_POLICY.md) — per-project and per-job tool disables. None of these replace this document.
 
 ## 1. Purpose
 
@@ -478,6 +478,14 @@ Independent of the prompt library. Specified in [TASKS.md](TASKS.md). Can follow
 - MariaDB `task_entries`; SPA list/create/edit/delete and home-page due card (works with the runner offline).
 - Optional `project` on tasks; agents read global ∪ job project, write job project only.
 - Runner tools on existing agent profiles; not a new job type.
+
+### Phase 9 — Web search and project tool policy
+
+Independent of the prompt library and of tasks. Specified in [WEB_SEARCH.md](WEB_SEARCH.md) and [TOOL_POLICY.md](TOOL_POLICY.md). Needs agent web profiles (Phase 4b).
+
+- Native `web_search` tool calling Ollama’s cloud API (`OLLAMA_API_KEY` on runner); `http_fetch` unchanged.
+- Per-project and per-job `disabled_tools` (subtract-only); New agent web search checkbox; full project settings UI later.
+- Not a new job type. No custom MCP.
 
 ## 16. Decisions
 
