@@ -55,6 +55,7 @@ Policy references **stable string ids** matching trace `tool_call.name` and runn
 | `calendar_search`, `calendar_get`, `calendar_add`, `calendar_edit`, `calendar_delete` | All profiles |
 | `journal_search`, `journal_get`, `journal_add`, `journal_edit`, `journal_delete` | All profiles |
 | `task_search`, `task_get`, `task_add`, `task_edit`, `task_delete` | All profiles |
+| `kb_list`, `kb_search`, `kb_get` | All profiles ([KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md)) |
 
 New tools get a id here when they ship. Server validation rejects unknown ids on PUT.
 

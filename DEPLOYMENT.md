@@ -21,6 +21,15 @@ php scripts/setup.php --username=admin --password=YOUR_PASSWORD
 
 4. Deploy so `api/` is web-reachable as `/api/` (keep `config.php` and `src/` one level above `api/`).
 
+**Knowledge-base uploads:** PHP’s default `upload_max_filesize` is often **2M**, which rejects most EPUBs. Set at least:
+
+```ini
+upload_max_filesize = 36M
+post_max_size = 40M
+```
+
+in the **Apache/mod_php** `php.ini` (e.g. `/etc/php/8.2/apache2/php.ini`), then reload Apache. UserDir hosts usually cannot override this from `.htaccess`. Keep these ≥ `max_kb_upload_bytes` in `config.php` (default 32 MiB). `api/.user.ini` helps only on CGI/FPM hosts.
+
 Clients call the front controller with PATH_INFO — no rewrite needed:
 
 ```
@@ -91,9 +100,10 @@ Ensure Ollama is running locally (`ollama serve`).
 4. Job moves queued → running → succeeded; result text appears on job detail
 5. **New agent** → pick model, profile, and project (existing or new), enter a task; watch the tool trace while running
 6. **Calendar** → `/#/calendar`; add an entry; optional project; confirm it remains after reload
-7. Stop runner → badge **offline**; new jobs stay queued; calendar still works
+7. **Knowledge** → `/#/knowledge`; create a knowledge base; upload a PDF/DOCX/EPUB; wait for status `ready` (runner must be online with `OWNRUN_KB_EMBED_MODEL` installed, e.g. `ollama pull nomic-embed-text`); run an agent task that calls `kb_search`
+8. Stop runner → badge **offline**; new jobs stay queued; calendar/journal/knowledge metadata still work (ingest waits)
 
-For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once (adds progress payload, agent capability columns, and `agent_projects`). For calendar support, run `php scripts/migrate_calendar.php` (adds `calendar_entries` and `runners.timezone`), then open `/#/calendar`.
+For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once (adds progress payload, agent capability columns, and `agent_projects`). For calendar support, run `php scripts/migrate_calendar.php` (adds `calendar_entries` and `runners.timezone`), then open `/#/calendar`. For knowledge bases, run `php scripts/migrate_kb.php` (adds `kb_bases` / `kb_documents` and creates `storage/kb`), add KB keys from `config.example.php` to `config.php`, and `pip install -r requirements.txt` on the runner.
 
 ## Repository layout
 
