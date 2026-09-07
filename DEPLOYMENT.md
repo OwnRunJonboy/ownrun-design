@@ -1,5 +1,7 @@
 # OwnRun — deployment guide
 
+**Try it first:** from this repo, `cd aio && ./up.sh`, then open http://localhost:8080 (`admin` / `ownrun`). See [aio/README.md](aio/README.md). That stack is for evaluation, not the production layout below.
+
 Three repos deploy to one domain. **No `mod_rewrite`.**
 
 ```
@@ -90,7 +92,30 @@ Local Apache example:
 export OWNRUN_SERVER_URL=http://localhost/ownrun-server
 ```
 
-Ensure Ollama is running locally (`ollama serve`).
+Ensure Ollama is running locally (`ollama serve`), **or** let OwnRun start/stop it via scripts when image generation is enabled (see below).
+
+### Image generation (Forge)
+
+Ollama and Stable Diffusion Forge must not run at the same time on a laptop that OOMs/crashes. Enable the exclusive backend gate:
+
+```bash
+php scripts/migrate_artifacts.php   # on ownrun-server once
+# Add artifacts_* / sd_* keys from config.example.php to config.php if missing
+# Apache must group-write storage/artifacts (same as storage/kb). migrate chmod 2770;
+# if you created the dir by hand: chmod 2770 storage/artifacts
+
+cp ownrun-runner/scripts/examples/*.sh ~/ownrun-scripts/
+chmod +x ~/ownrun-scripts/*.sh
+# Edit scripts for your Forge path / Ollama unit
+
+export OWNRUN_SD_ENABLED=1
+export OWNRUN_OLLAMA_START_SCRIPT=$HOME/ownrun-scripts/start-ollama.sh
+export OWNRUN_OLLAMA_STOP_SCRIPT=$HOME/ownrun-scripts/stop-ollama.sh
+export OWNRUN_SD_START_SCRIPT=$HOME/ownrun-scripts/start-sd.sh
+export OWNRUN_SD_STOP_SCRIPT=$HOME/ownrun-scripts/stop-sd.sh
+```
+
+Smoke: **New image** → generate → view gallery; then **New chat** (runner stops Forge, starts Ollama). Do not start both stacks manually.
 
 ## End-to-end check (v1)
 
@@ -101,9 +126,10 @@ Ensure Ollama is running locally (`ollama serve`).
 5. **New agent** → pick model, profile, and project (existing or new), enter a task; watch the tool trace while running
 6. **Calendar** → `/#/calendar`; add an entry; optional project; confirm it remains after reload
 7. **Knowledge** → `/#/knowledge`; create a knowledge base; upload a PDF/DOCX/EPUB; wait for status `ready` (runner must be online with `OWNRUN_KB_EMBED_MODEL` installed, e.g. `ollama pull nomic-embed-text`); run an agent task that calls `kb_search`
-8. Stop runner → badge **offline**; new jobs stay queued; calendar/journal/knowledge metadata still work (ingest waits)
+8. **New image** (when SD enabled) → prompt → succeeded job shows image gallery; confirm a following chat still works
+9. Stop runner → badge **offline**; new jobs stay queued; calendar/journal/knowledge metadata still work (ingest waits)
 
-For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once (adds progress payload, agent capability columns, and `agent_projects`). For calendar support, run `php scripts/migrate_calendar.php` (adds `calendar_entries` and `runners.timezone`), then open `/#/calendar`. For knowledge bases, run `php scripts/migrate_kb.php` (adds `kb_bases` / `kb_documents` and creates `storage/kb`), add KB keys from `config.example.php` to `config.php`, and `pip install -r requirements.txt` on the runner.
+For agent support on an existing database, run `php scripts/migrate_agent.php` in ownrun-server once (adds progress payload, agent capability columns, and `agent_projects`). For calendar support, run `php scripts/migrate_calendar.php` (adds `calendar_entries` and `runners.timezone`), then open `/#/calendar`. For knowledge bases, run `php scripts/migrate_kb.php` (adds `kb_bases` / `kb_documents` and creates `storage/kb`), add KB keys from `config.example.php` to `config.php`, and `pip install -r requirements.txt` on the runner. For image artifacts, run `php scripts/migrate_artifacts.php` (adds `job_artifacts` and runner SD columns) and add artifact keys from `config.example.php`. For login rate limits and lockout, run `php scripts/migrate_login_throttle.php` (adds `login_attempts` and `users.failed_login_count` / `locked_until`).
 
 ## Repository layout
 

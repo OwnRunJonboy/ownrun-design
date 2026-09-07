@@ -1,0 +1,10 @@
+.env
+README.md
+*.md
+.git
+src/**/.git
+src/**/node_modules
+src/**/dist
+src/**/.venv
+src/**/models
+src/**/*.gguf

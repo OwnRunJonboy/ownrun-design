@@ -1,0 +1,94 @@
+version: "2.4"
+
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ownrun
+      MARIADB_USER: ownrun
+      MARIADB_PASSWORD: ${OWNRUN_DB_PASS:-ownrun}
+      MARIADB_ROOT_PASSWORD: ${OWNRUN_DB_ROOT_PASS:-ownrun-root}
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "10m"
+
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OWNRUN_OLLAMA_MODEL: ${OWNRUN_OLLAMA_MODEL:-llama3.2}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        model="$${OWNRUN_OLLAMA_MODEL}"
+        if [ -z "$$model" ]; then
+          echo "OWNRUN_OLLAMA_MODEL is empty; skipping pull."
+          exit 0
+        fi
+        echo "Waiting for Ollama…"
+        i=0
+        until /bin/ollama list >/dev/null 2>&1; do
+          i=$$((i + 1))
+          if [ "$$i" -gt 60 ]; then
+            echo "Timed out waiting for Ollama" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        echo "Pulling $$model (first start can take several minutes)…"
+        /bin/ollama pull "$$model"
+        echo "Model ready: $$model"
+
+  ownrun:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ownrun:aio
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    ports:
+      - "${OWNRUN_PORT:-8080}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      OWNRUN_DB_HOST: db
+      OWNRUN_DB_PORT: 3306
+      OWNRUN_DB_NAME: ownrun
+      OWNRUN_DB_USER: ownrun
+      OWNRUN_DB_PASS: ${OWNRUN_DB_PASS:-ownrun}
+      OWNRUN_ADMIN_USER: ${OWNRUN_ADMIN_USER:-admin}
+      OWNRUN_ADMIN_PASSWORD: ${OWNRUN_ADMIN_PASSWORD:-ownrun}
+      OWNRUN_JWT_SECRET: ${OWNRUN_JWT_SECRET:-}
+      OWNRUN_RUNNER_TOKEN: ${OWNRUN_RUNNER_TOKEN:-}
+      OWNRUN_TIMEZONE: ${OWNRUN_TIMEZONE:-UTC}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OWNRUN_PUBLISH_PORT: ${OWNRUN_PORT:-8080}
+    volumes:
+      - data:/data
+      - storage:/opt/ownrun/server/storage
+
+volumes:
+  db:
+  ollama:
+  data:
+  storage:

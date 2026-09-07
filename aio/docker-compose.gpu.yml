@@ -1,0 +1,10 @@
+version: "2.4"
+
+# NVIDIA GPU for the bundled Ollama service.
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+services:
+  ollama:
+    runtime: nvidia
+    environment:
+      OLLAMA_KEEP_ALIVE: "10m"
+      NVIDIA_VISIBLE_DEVICES: all

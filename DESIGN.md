@@ -4,7 +4,7 @@
 **Date:** 2026-08-16  
 **Author:** Jonboy
 
-**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. [TASKS.md](TASKS.md) — personal task tracker in the SPA, home-page due card, and agent task tools (project CRUD; global read-only). [WEB_SEARCH.md](WEB_SEARCH.md) — agent web search via Ollama’s cloud API (`web_search` + existing `http_fetch`). [TOOL_POLICY.md](TOOL_POLICY.md) — per-project and per-job tool disables. [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) — personal RAG: upload PDF/DOCX/EPUB, runner embed/index, agent `kb_*` tools. None of these replace this document.
+**Related:** [AGENT.md](AGENT.md) — agent jobs (`agent.task`) via Autogen AgentChat on the home runner. [CALENDAR.md](CALENDAR.md) — personal calendar in the SPA, with agent search/view/add/edit/delete tools. [JOURNAL.md](JOURNAL.md) — personal journal in the SPA, home-page memory card, and agent journal tools (project CRUD; global read-only). [SYSTEM_PROMPTS.md](SYSTEM_PROMPTS.md) — saved system-prompt library and global/per-project defaults for chat and agent jobs. [TASKS.md](TASKS.md) — personal task tracker in the SPA, home-page due card, and agent task tools (project CRUD; global read-only). [WEB_SEARCH.md](WEB_SEARCH.md) — agent web search via Ollama’s cloud API (`web_search` + existing `http_fetch`). [TOOL_POLICY.md](TOOL_POLICY.md) — per-project and per-job tool disables. [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) — personal RAG: upload PDF/DOCX/EPUB, runner embed/index, agent `kb_*` tools. [IMAGE_GENERATION.md](IMAGE_GENERATION.md) — Stable Diffusion txt2img jobs, artifacts, and exclusive Ollama↔SD backend gate. None of these replace this document.
 
 ## 1. Purpose
 
@@ -173,13 +173,13 @@ created ──► queued ──► claimed/running ──► succeeded
 
 Personal single-user is enough for v1, but store a user record for future flexibility.
 
-- `id`, `email` or `username`, `password_hash`, `created_at`
+- `id`, `email` or `username`, `password_hash`, `token_version`, `created_at`
 
 ### Refresh token
 
 Server-stored, hashed; used to mint new access JWTs without re-entering a password.
 
-- `id`, `user_id`, `token_hash`, `expires_at`, `remember_me` (bool), `created_at`, `last_used_at`, `revoked_at` (nullable)
+- `id`, `user_id`, `token_hash`, `family_id`, `expires_at`, `remember_me` (bool), `created_at`, `last_used_at`, `revoked_at` (nullable)
 
 ### Runner
 
@@ -220,35 +220,36 @@ Separate credentials for UI and runner. Compromising a web access JWT should not
 
 **Access JWT**
 
-- Signed JWT (e.g. HS256 with a server secret, or RS256 if preferred later).
-- Claims: user id, expiry, issued-at; keep payload small.
-- Lifetime: **long for an access token** in this personal app (e.g. **7 days**) so brief offline periods and closed tabs do not force a login. The SPA refreshes before expiry when a refresh token is present.
+- Signed JWT (HS256 with a server secret; reject any other `alg`).
+- Claims: user id (`sub`), token version (`ver`), expiry, issued-at; keep payload small.
+- Lifetime: **short** (e.g. **15 minutes**). The SPA refreshes before expiry and retries once on 401.
+- `ver` must match `users.token_version`. Logout (and refresh-token reuse) increments the version so outstanding access JWTs die immediately.
 
 **Refresh tokens**
 
-- Opaque random secrets, stored **hashed** in MariaDB (revocable).
-- `POST /api/auth/refresh` returns a new access JWT and a **rotated** refresh token.
-- Default (login without Remember me): long-lived relative to typical apps (e.g. **30 days**), persisted in `sessionStorage` so closing the browser ends the refresh chain.
-- Goal is still infrequent login: 30 days of use in the same browser session/profile without a password.
+- Opaque random secrets, stored **hashed** in MariaDB (revocable). Grouped by `family_id` so rotation can detect reuse.
+- `POST /api/auth/refresh` returns a new access JWT and a **rotated** refresh token in the same family.
+- Presenting a already-revoked refresh token revokes the whole family and bumps `token_version`.
+- Default (login without Remember me): e.g. **7 days**, persisted in `sessionStorage` so closing the browser ends the refresh chain.
 
 **Remember me**
 
 - Login accepts `remember_me: true`.
-- Issues a remember-me refresh token with a **very long** lifetime (e.g. **1 year**).
-- SPA stores it in `localStorage` so it survives browser restarts.
+- Issues a remember-me refresh token with a **30 day** lifetime (survive browser restart, not a year).
+- SPA stores **only the refresh token** in `localStorage`. The access JWT stays in memory / `sessionStorage`.
 - Same refresh endpoint; rotation keeps the remember-me expiry policy (do not silently downgrade a remember-me token to a short one).
 
 **Logout / revocation**
 
-- `POST /api/auth/logout` revokes the presented refresh token (and optionally all refresh tokens for the user).
-- Access JWTs remain valid until they expire (no denylist required for v1). Logout still clears tokens from the SPA immediately.
-- Password change (if added later) should revoke all refresh tokens.
+- `POST /api/auth/logout` revokes the presented refresh **family** and increments `users.token_version`.
+- Other devices keep their own refresh families and mint a new access JWT on the next refresh.
+- Password change (if added later) should revoke all refresh tokens and bump `token_version`.
 
 **SPA storage**
 
-- Access JWT: `localStorage` when Remember me is set, otherwise `sessionStorage` (or memory + the matching refresh store).
+- Access JWT: memory plus `sessionStorage` only — never `localStorage`.
 - Refresh / remember-me token: `localStorage` if Remember me, else `sessionStorage`.
-- On app load: if a refresh token exists, refresh immediately; if only a still-valid access JWT exists, use it.
+- On app load: if a refresh token exists, refresh immediately.
 
 Same-origin SPA + `/api` means the browser does not need CORS for ownrun-web. Cookies are not the primary auth mechanism. The runner is a non-browser client, so CORS does not apply to it.
 
@@ -256,7 +257,7 @@ Same-origin SPA + `/api` means the browser does not need CORS for ownrun-web. Co
 
 - `POST /api/auth/login` — `{ username, password, remember_me }`; returns access JWT + refresh token
 - `POST /api/auth/refresh` — `{ refresh_token }`; returns new access JWT + rotated refresh token
-- `POST /api/auth/logout` — revoke the presented refresh token (SPA then discards JWTs)
+- `POST /api/auth/logout` — revoke the presented refresh family and bump token version (SPA then discards JWTs)
 - `GET  /api/jobs`
 - `POST /api/jobs` — create job (includes selected `model`)
 - `GET  /api/jobs/{id}`
@@ -352,8 +353,8 @@ OwnRun deliberately exposes a path from the public internet to local compute. Se
 - Database credentials
 - App secret for **JWT signing**
 - Refresh-token hashing
-- Access JWT TTL (long; e.g. 7 days)
-- Refresh TTL (e.g. 30 days) and remember-me TTL (e.g. 1 year)
+- Access JWT TTL (short; e.g. 15 minutes)
+- Refresh TTL (e.g. 7 days) and remember-me TTL (e.g. 30 days)
 - Artifact storage path
 - Max upload sizes
 - Allowed CORS origins (optional; not required while SPA and API share one origin)
@@ -433,10 +434,13 @@ SPA history-mode routing (if used) must rewrite unknown paths to `index.html` **
 
 ### Phase 3 — Images (Stable Diffusion)
 
+Specified in [IMAGE_GENERATION.md](IMAGE_GENERATION.md).
+
 - Artifact upload/download on server and web.
-- Runner Stable Diffusion adapter (`stablediffusion.txt2img` or similar).
+- Runner Stable Diffusion adapter (`stablediffusion.txt2img`).
+- **Exclusive backend gate:** runner fully stops Ollama before starting SD and vice versa (simultaneous use crashes this laptop).
 - Web UI: submit image jobs and view/download results.
-- Keep Ollama text path unchanged.
+- Keep Ollama text/agent/KB adapters unchanged aside from going through the gate.
 
 ### Phase 4 — Agents (Autogen AgentChat)
 
@@ -498,7 +502,7 @@ Independent of the prompt library and of tasks. Specified in [WEB_SEARCH.md](WEB
 7. **Hosting paths:** same domain; **SPA at site root** (`/`), **PHP API at `/api`**—not separate subdomains, and not an `/app` subdirectory for the frontend.
 8. **Ollama API:** `/api/chat` (job type `ollama.chat`), non-streaming for v1.
 9. **Model selection:** user-selectable list in the web UI; runner reports available Ollama models to the server; SPA loads them via `GET /api/models`; selected model is stored on each job.
-10. **Token details:** **JWT access tokens**; **refresh tokens** and **remember-me tokens** to keep login rare. Suggested TTLs: access JWT ~7 days; refresh ~30 days; remember-me refresh ~1 year. Rotate refresh tokens on use; store refresh/remember-me hashes in MariaDB for revocation. Runner credentials remain opaque hashed tokens, not JWTs.
+10. **Token details:** **JWT access tokens**; **refresh tokens** and **remember-me tokens** to keep login rare. Suggested TTLs: access JWT ~15 minutes; session refresh ~7 days; remember-me refresh ~30 days. Rotate refresh tokens on use; store refresh/remember-me hashes in MariaDB; include `ver` in the access JWT so logout revokes it. Runner credentials remain opaque hashed tokens, not JWTs.
 11. **Agents (post-v1):** Autogen AgentChat on the home runner, Ollama as the model only. Job type `agent.task`. Details in [AGENT.md](AGENT.md).
 
 ## 17. Open decisions
