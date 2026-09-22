@@ -31,15 +31,12 @@ services:
       - ollama
     environment:
       OLLAMA_HOST: http://ollama:11434
-      OWNRUN_OLLAMA_MODEL: ${OWNRUN_OLLAMA_MODEL:-llama3.2}
+      # Space-separated model lists are supported (word-split in the pull loop).
+      OWNRUN_OLLAMA_MODEL: ${OWNRUN_OLLAMA_MODEL:-llama3.2 frob/qwen3.5-instruct:4b}
+      OWNRUN_KB_EMBED_MODEL: ${OWNRUN_KB_EMBED_MODEL:-nomic-embed-text}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        model="$${OWNRUN_OLLAMA_MODEL}"
-        if [ -z "$$model" ]; then
-          echo "OWNRUN_OLLAMA_MODEL is empty; skipping pull."
-          exit 0
-        fi
         echo "Waiting for Ollama…"
         i=0
         until /bin/ollama list >/dev/null 2>&1; do
@@ -50,9 +47,20 @@ services:
           fi
           sleep 2
         done
-        echo "Pulling $$model (first start can take several minutes)…"
-        /bin/ollama pull "$$model"
-        echo "Model ready: $$model"
+        # Intentional unquoted expansion: space-separated model ids.
+        set -- $${OWNRUN_OLLAMA_MODEL} $${OWNRUN_KB_EMBED_MODEL}
+        if [ "$$#" -eq 0 ]; then
+          echo "No models configured; skipping pull."
+          exit 0
+        fi
+        for model in "$$@"; do
+          if [ -z "$$model" ]; then
+            continue
+          fi
+          echo "Pulling $$model (first start can take several minutes)…"
+          /bin/ollama pull "$$model"
+          echo "Model ready: $$model"
+        done
 
   ownrun:
     build:

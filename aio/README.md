@@ -30,7 +30,7 @@ docker-compose up --build
 
 Then open **http://localhost:8080** and log in as `admin` / `ownrun`.
 
-The first start downloads images, builds the OwnRun image, and pulls `llama3.2` into Ollama. That can take several minutes and a few GB of disk.
+The first start downloads images, builds the OwnRun image, and pulls `llama3.2`, `frob/qwen3.5-instruct:4b`, and `nomic-embed-text` into Ollama. That can take several minutes and a few GB of disk.
 
 ## What is in the stack
 
@@ -39,7 +39,7 @@ The first start downloads images, builds the OwnRun image, and pulls `llama3.2` 
 | `ownrun` | Nginx + PHP-FPM (SPA + API) + Python runner |
 | `db` | MariaDB 11 |
 | `ollama` | Local LLM API the runner calls |
-| `ollama-init` | One-shot `ollama pull` of `OWNRUN_OLLAMA_MODEL` |
+| `ollama-init` | One-shot `ollama pull` of chat + KB embed models |
 
 Image generation (Stable Diffusion Forge) is **off**. The exclusive GPU gate is a home-machine concern; use the normal runner install for that.
 
@@ -55,17 +55,28 @@ Set these in `.env` (see `.env.example`):
 | `OWNRUN_PORT` | `8080` | Host port |
 | `OWNRUN_ADMIN_USER` / `OWNRUN_ADMIN_PASSWORD` | `admin` / `ownrun` | Login (re-applied on each start) |
 | `OWNRUN_TIMEZONE` | `UTC` | Runner timezone for journal/tasks |
-| `OWNRUN_OLLAMA_MODEL` | `llama3.2` | Pulled on first start; empty skips the pull |
+| `OWNRUN_OLLAMA_MODEL` | `llama3.2 frob/qwen3.5-instruct:4b` | Space-separated chat models pulled on first start; empty skips |
+| `OWNRUN_KB_EMBED_MODEL` | `nomic-embed-text` | KB embeddings; empty skips the pull |
 | `OLLAMA_BASE_URL` | `http://ollama:11434` | Runner → Ollama |
 | `OLLAMA_API_KEY` | empty | Optional cloud `web_search` for agent jobs |
 
 JWT secret and runner token are generated on first boot and stored in the `data` volume (`/data/secrets.env`). You can set `OWNRUN_JWT_SECRET` / `OWNRUN_RUNNER_TOKEN` to pin them.
 
+Use **`frob/qwen3.5-instruct:4b`** in the SPA for agent/tool work; keep `llama3.2` if you want a lighter option.
+
 ## Extra models
 
+If you started before these defaults, pull what you need:
+
 ```bash
-docker-compose exec ollama ollama pull nomic-embed-text   # knowledge-base embeddings
-docker-compose exec ollama ollama pull qwen2.5            # stronger agent/tool model
+docker-compose exec ollama ollama pull frob/qwen3.5-instruct:4b
+docker-compose exec ollama ollama pull nomic-embed-text
+```
+
+Or re-run init after updating `.env`:
+
+```bash
+docker-compose up ollama-init
 ```
 
 A smaller first pull: `OWNRUN_OLLAMA_MODEL=llama3.2:1b`.
@@ -95,7 +106,7 @@ The bundled `ollama` container still starts but is unused. You can `docker-compo
 
 Compose volumes: MariaDB (`db`), Ollama models (`ollama`), runner workspace/KB index (`data`), and PHP uploads/artifacts (`storage`).
 
-Wipe a try-it instance with `docker-compose down -v`.
+On each `ownrun` start, `setup.php` plus every `scripts/migrate_*.php` run so an existing DB volume picks up new columns/tables after you rebuild. Wipe a try-it instance with `docker-compose down -v`.
 
 ## Health
 

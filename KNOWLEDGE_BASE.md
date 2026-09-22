@@ -24,7 +24,7 @@ The knowledge base is OwnRun’s **RAG kit**: upload → parse → chunk → emb
 ## 2. Goals
 
 - SPA UI to create **knowledge bases** (named collections), upload files, see ingest status, and delete documents.
-- v1 parsers: **PDF**, **Word (DOCX)**, **EPUB**.
+- Parsers: **PDF**, **Word (DOCX)**, **EPUB**, **Markdown** (`.md`, `.markdown`), **plain text** (`.txt`).
 - Runner-side **ingest pipeline** (parse, chunk, embed) using **local Ollama** embeddings.
 - Persistent **local vector index** on the home machine (no inbound ports, no cloud vector host).
 - Agent tools to **search** (and lightly inspect) the knowledge base, scoped like journal: global ∪ job project.
@@ -38,7 +38,7 @@ The knowledge base is OwnRun’s **RAG kit**: upload → parse → chunk → emb
 - SPA semantic search box (agents search; the SPA manages documents). Optional later.
 - Cloud embedding APIs or hosted vector DBs (Pinecone, etc.).
 - OCR for scanned PDFs (image-only pages may yield empty text; surface a clear ingest warning).
-- Legacy `.doc` (binary Word), RTF, HTML-as-upload, Markdown-as-KB-doc, or arbitrary archives.
+- Legacy `.doc` (binary Word), RTF, HTML-as-upload, or arbitrary archives.
 - Auto-sync of the entire workspace directory into the KB (explicit upload only).
 - Agent tools to **upload** or **delete** documents in v1 (user manages corpus in the SPA; agents only retrieve).
 - Fine-grained ACL per document beyond knowledge-base project scoping.
@@ -219,6 +219,8 @@ If the runner is offline, the SPA still shows “Deleting…” until purge comp
 | PDF | `.pdf` | pypdf / pdfplumber / PyMuPDF — pick one primary | Text extraction only; no OCR in v1 |
 | Word | `.docx` | `python-docx` | **Not** legacy `.doc` |
 | EPUB | `.epub` | `ebooklib` (+ HTML→text strip) | Skip non-linear nav fluff where practical; DRM-encrypted → fail clearly |
+| Markdown | `.md`, `.markdown` | heading split (ATX + setext); UTF-8 | YAML front matter stripped; fenced code is not treated as headings |
+| Plain text | `.txt` | UTF-8 decode + normalize | Whole file is one section; chunker splits long files |
 
 MIME sniffing + extension allowlist on upload. Reject zip bombs / path traversal inside EPUB.
 
@@ -380,7 +382,7 @@ Server: `max_kb_upload_bytes`, max documents per KB (e.g. **200**), max KBs per 
 1. **Schema + SPA CRUD + blob storage** (no vectors yet; status stays pending).
 2. **`kb.ingest` / `kb.delete` adapters** + parsers + Chroma + Ollama embeddings.
 3. **Agent tools** + system-prompt recipe + tool policy ids.
-4. Later (out of v1): OCR, Markdown/HTML sources, SPA “ask” box, agent upload, hybrid lexical search, additional formats.
+4. Later (out of v1): OCR, HTML sources, SPA “ask” box, agent upload, hybrid lexical search, additional formats.
 
 ## 17. Open decisions (resolved for implementation)
 
@@ -395,7 +397,7 @@ Server: `max_kb_upload_bytes`, max documents per KB (e.g. **200**), max KBs per 
 1. **Hybrid storage:** originals + metadata on ownrun-server; vectors + chunks on ownrun-runner.
 2. **Named knowledge bases** with optional **project** label; agents search global ∪ job project.
 3. **Ingest/delete are job types** (`kb.ingest`, `kb.delete`), not agent loops.
-4. **v1 formats:** PDF, DOCX, EPUB; text extract only; no OCR.
+4. **Formats:** PDF, DOCX, EPUB, Markdown, TXT; text extract only; no OCR.
 5. **Embeddings via local Ollama**; one configured model; rebuild on change.
 6. **Embedded vector DB on disk** under `OWNRUN_KB_DIR` (Chroma recommended).
 7. **Agent tools:** `kb_list`, `kb_search`, `kb_get` on all profiles; subtract via tool policy; agents do not mutate the corpus in v1.
@@ -410,4 +412,4 @@ Server: `max_kb_upload_bytes`, max documents per KB (e.g. **200**), max KBs per 
 4. Runner: parsers, chunker, embed client, vector store, ingest/delete adapters.
 5. Runner: agent tools + prompt boilerplate + heartbeat capabilities (`kb_embed_model`, `agent_tool_ids`).
 6. Tool policy ids + docs (`TOOL_POLICY.md`, `DESIGN.md` related link, `DEPLOYMENT.md` smoke checklist).
-7. Manual test: upload PDF/DOCX/EPUB → ready → agent `kb_search` cites the right source.
+7. Manual test: upload PDF/DOCX/EPUB/Markdown/TXT → ready → agent `kb_search` cites the right source.

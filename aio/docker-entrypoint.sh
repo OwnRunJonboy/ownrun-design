@@ -94,6 +94,12 @@ php /opt/ownrun/server/scripts/setup.php \
     --runner-token="${OWNRUN_RUNNER_TOKEN}" \
     --update-password
 
+# schema.sql uses CREATE IF NOT EXISTS; apply additive migrations on existing volumes.
+for migrate in /opt/ownrun/server/scripts/migrate_*.php; do
+    echo "Running $(basename "${migrate}")…"
+    php "${migrate}"
+done
+
 cat > "${RUNNER_ENV}" <<EOF
 OWNRUN_SERVER_URL=http://127.0.0.1
 OWNRUN_RUNNER_TOKEN=${OWNRUN_RUNNER_TOKEN}
